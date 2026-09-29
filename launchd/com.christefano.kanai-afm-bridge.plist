@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.christefano.kanai-afm-bridge</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__BIN__</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>KANAI_AFM_BRIDGE_PORT</key>
+        <string>__PORT__</string>
+        <key>KANAI_AFM_BRIDGE_TOKEN</key>
+        <string>__TOKEN__</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/kanai-afm-bridge.log</string>
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Logs/kanai-afm-bridge.log</string>
+</dict>
+</plist>

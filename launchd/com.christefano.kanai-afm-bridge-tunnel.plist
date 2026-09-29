@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.christefano.kanai-afm-bridge-tunnel</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/ssh</string>
+        <string>-N</string>
+        <string>-o</string><string>BatchMode=yes</string>
+        <string>-o</string><string>ExitOnForwardFailure=yes</string>
+        <string>-o</string><string>ServerAliveInterval=30</string>
+        <string>-o</string><string>ServerAliveCountMax=3</string>
+        <string>-o</string><string>IdentitiesOnly=yes</string>
+        <string>-p</string><string>__SSH_PORT__</string>
+        <string>-i</string><string>__KEY__</string>
+        <string>-R</string><string>127.0.0.1:__PORT__:127.0.0.1:__PORT__</string>
+        <string>__TUNNEL_TARGET__</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/kanai-afm-bridge-tunnel.log</string>
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Logs/kanai-afm-bridge-tunnel.log</string>
+</dict>
+</plist>
