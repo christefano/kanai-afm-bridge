@@ -16,7 +16,7 @@ Nothing needs to be installed. No queries or responses get sent to third-party A
 3. `sh test.sh` (from a second terminal) to confirm that everything works: the model answers, JSON mode works, the request guards refuse what they should, and a prompt that asks the model to run commands and delete files only gets prose back.
 4. In Kanboard, Settings -> KanAI, set the provider the `local`, Base URL to `http://127.0.0.1:11437/v1`, and model to `apple-foundation`
 
-INSTALL.md covers requirements, running in the background at login, and the SSH tunnel to a Kanboard server.
+[INSTALL.md](INSTALL.md) covers requirements, running in the background at login, and the SSH tunnel to a Kanboard server.
 
 
 ## What it does
