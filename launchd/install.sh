@@ -38,7 +38,7 @@ install_agent com.christefano.kanai-afm-bridge
 
 if [ -n "${1:-}" ]; then
   TARGET="$1"
-  [ -f "$KEY" ] || { echo "Missing $KEY (see INSTALL.md, section Run at login)."; exit 1; }
+  [ -f "$KEY" ] || { echo "Missing $KEY (see INSTALL.md, section SSH tunnel that survives a restart)."; exit 1; }
   install_agent com.christefano.kanai-afm-bridge-tunnel
 fi
 launchctl list | grep kanai-afm-bridge || true
