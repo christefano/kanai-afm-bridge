@@ -47,7 +47,7 @@ Example: `KANAI_TUNNEL_SSH_PORT=2222 sh launchd/install.sh tunnel@your-kanboard-
 
 To stop, start, or restart, see the "Stop, start, and restart" section of README.md.
 
-For a tunnel to survive restarts, it needs a key without a passphrase that's restricted on the server to this one forward. Use an unprivileged account on the server (the examples call it `tunnel`) and *not* root:
+For a tunnel to survive restarts, it needs a key without a passphrase that's restricted on the server to this one forward. Use an unprivileged account on the server (the examples call it `tunnel`) and *not* root. The tunnel account can be separate from the account that runs Kanboard's PHP, because the firewall rule below allows the Kanboard user and not the tunnel account:
 
 1. `ssh-keygen -t ed25519 -N "" -f ~/.ssh/kanai-tunnel`
 2. Add the public key to `~tunnel/.ssh/authorized_keys` on the server as one line beginning with `restrict,port-forwarding,permitlisten="127.0.0.1:11437"` (use your port if it isn't 11437), then a space and the contents of `~/.ssh/kanai-tunnel.pub`
@@ -58,6 +58,87 @@ For a tunnel to survive restarts, it needs a key without a passphrase that's res
 `sh launchd/uninstall.sh` uninstalls it.
 
 A LaunchAgent starts when you log in. After a restart, the bridge comes back up once you're logged in, so unattended restarts need automatic login (FileVault doesn't allow this, though). A Mac that's asleep or off obviously won't be able to answer.
+
+
+## Firewall for the tunnel port
+
+Through the tunnel, the port opens on the server's loopback, so every local user and web app on the server can reach it. These steps are for a server that runs firewalld. They add a rule that lets only the account that runs Kanboard's PHP and root connect to `127.0.0.1:11437`. The rule matches the process that opens the connection, and that is Kanboard's PHP and not the sshd listener. A tunnel account that isn't the Kanboard user doesn't need to be allowed, and allowing only that account would block KanAI. This is reasoned from how the owner match works and hasn't been tested with two separate accounts. Root can always reach the port.
+
+Replace `kanboard` with the name of the account that runs Kanboard's PHP.
+
+1. Add the following rules as root:
+
+   ```bash
+   firewall-cmd --permanent --direct --add-rule ipv4 filter OUTPUT 0 -o lo -p tcp -d 127.0.0.1 --dport 11437 -m owner --uid-owner kanboard -j ACCEPT
+   firewall-cmd --permanent --direct --add-rule ipv4 filter OUTPUT 1 -o lo -p tcp -d 127.0.0.1 --dport 11437 -m owner --uid-owner 0 -j ACCEPT
+   firewall-cmd --permanent --direct --add-rule ipv4 filter OUTPUT 2 -o lo -p tcp -d 127.0.0.1 --dport 11437 -j REJECT
+   ```
+
+2. Reload so they take effect.
+
+   ```bash
+   firewall-cmd --reload
+   ```
+
+3. Check that all three rules are listed, that they were saved and not just loaded, and that firewalld is running.
+
+   ```bash
+   firewall-cmd --direct --get-all-rules && firewall-cmd --state
+   grep 11437 /etc/firewalld/direct.xml
+   ```
+
+4. Test as a user that should be blocked (any account except the Kanboard user and root). It should fail with curl exit 7.
+
+   ```bash
+   sudo -u www-data curl -s -m 5 http://127.0.0.1:11437/v1/models; echo "exit $?"
+   ```
+
+5. Test as the Kanboard user. It should list `apple-foundation`.
+
+   ```bash
+   sudo -u kanboard curl -s -m 5 http://127.0.0.1:11437/v1/models
+   ```
+
+An incorrect or deleted SSH key makes the Mac retry every 30s. If the server runs fail2ban, add your Mac's public IP to `ignoreip` for the `sshd` jail or the retries might get it banned.
+
+### If firewalld ends up in a FAILED state
+
+A bad rule is probably blocking `--permanent` changes. Back up `/etc/firewalld/direct.xml`, rewrite it with the three rules, and restart.
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<direct>
+  <rule ipv="ipv4" table="filter" chain="OUTPUT" priority="0">-o lo -p tcp -d 127.0.0.1 --dport 11437 -m owner --uid-owner kanboard -j ACCEPT</rule>
+  <rule ipv="ipv4" table="filter" chain="OUTPUT" priority="1">-o lo -p tcp -d 127.0.0.1 --dport 11437 -m owner --uid-owner 0 -j ACCEPT</rule>
+  <rule ipv="ipv4" table="filter" chain="OUTPUT" priority="2">-o lo -p tcp -d 127.0.0.1 --dport 11437 -j REJECT</rule>
+</direct>
+```
+
+```bash
+cp /etc/firewalld/direct.xml /root/direct.xml.bak && systemctl restart firewalld
+```
+
+### After a server reboot
+
+A server reboot doesn't affect the tunnel itself. The Mac creates the forward when it connects, so the server keeps nothing to restore. The firewall is the only part that has to come back on its own: keep the rules permanent and make sure firewalld starts at boot.
+
+1. Confirm firewalld starts at boot. It should print `enabled`. If it doesn't, run `systemctl enable firewalld`.
+
+   ```bash
+   systemctl is-enabled firewalld
+   ```
+
+2. Confirm sshd clears a dead tunnel listener after the connection drops, so the port can be reused when the Mac reconnects. Each line should be set at least once.
+
+   ```bash
+   grep -E '^(ClientAliveInterval|ClientAliveCountMax)' /etc/ssh/sshd_config
+   ```
+
+3. Reboot the server, then wait for the Mac to reconnect. The Mac's LaunchAgent restarts `ssh -N` every 30s until sshd is up. Time to reconnect isn't measured.
+
+4. Run steps 3 to 5 of the firewall steps again as root.
+
+A server reboot was tested: the tunnel reconnected on its own and the rules stayed in force. The reconnect time wasn't measured.
 
 
 ## KanAI's scheduled digests
@@ -74,6 +155,8 @@ To guard against this, ask the bridge for its model list first and run the diges
 ```
 
 The guard has a few limits: a skipped day isn't retried or logged, a Mac that goes to sleep during the run leaves some projects with a digest and some without, and the model list answers even when the on-device model is unavailable. Re-running after a partial run duplicates the projects that already have one.
+
+The cron job connects to the port as its own user, so that user must be the one the firewall rule allows (reasoned and not tested). The `kanai:digest` idempotence claim is read from `DigestCommand.php` and not tested. If the tunnel is down at run time, cron skips the day and writes no log line.
 
 Run it once a day at most. `kanai:digest` doesn't check for an existing digest, so a second run on the same day will add a duplicate conversation.
 
